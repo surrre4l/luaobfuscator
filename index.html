@@ -1,27 +1,126 @@
-<section class="panel">
-  <h2>Options</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>surrre4L · Luau Obfuscator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-  <fieldset>
-    <legend>Identifier style (pick one)</legend>
-    <label><input type="radio" name="idstyle" value="rename" checked> Rename &nbsp;<code>_0x0001</code></label>
-    <label><input type="radio" name="idstyle" value="mangle"> Mangle &nbsp;<code>_l1O0S5Zz</code></label>
-    <label><input type="radio" name="idstyle" value="sflood"> S-Flood &nbsp;<code>SSSSSS</code></label>
-    <label><input type="radio" name="idstyle" value="none"> None</label>
-  </fieldset>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◈</span>
+    <div>
+      <h1>Luau Obfuscator</h1>
+      <p class="sub">protected by <b>surrre4L</b> · 100% client-side</p>
+    </div>
+  </div>
+  <div class="badges">
+    <span class="badge">XOR</span>
+    <span class="badge">B64</span>
+    <span class="badge">CFF</span>
+    <span class="badge">S-FLOOD</span>
+  </div>
+</header>
 
-  <fieldset>
-    <legend>String encoding (stackable)</legend>
-    <label><input type="checkbox" id="str-xor" checked> XOR</label>
-    <label><input type="checkbox" id="str-b64"> Base64</label>
-    <label><input type="checkbox" id="str-caesar"> Caesar</label>
-  </fieldset>
+<main class="layout">
 
-  <label><input type="checkbox" id="opt-env" checked> Environment hiding</label>
-  <label><input type="checkbox" id="opt-deadcode" checked> Dead-code injection</label>
-  <label><input type="checkbox" id="opt-numsplit" checked> Number splitting</label>
-  <label><input type="checkbox" id="opt-flatten" checked> Strong control-flow flattening</label>
-  <label><input type="checkbox" id="opt-vm"> VM wrapper (loadstring)</label>
-  <label><input type="checkbox" id="opt-minify"> Minify output</label>
+  <!-- ── LEFT: INPUT ───────────────────────────────────────────── -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Input</h2>
+      <span class="tag" id="input-tag">empty</span>
+    </div>
 
-  <button id="obfuscate-btn">Obfuscate</button>
-</section>
+    <div id="dropzone" class="dropzone">
+      <div class="dz-icon">⬆</div>
+      <p class="dz-title">Drop <b>.lua</b> or <b>.txt</b></p>
+      <label class="filebtn">
+        Browse
+        <input type="file" id="file-input" accept=".lua,.txt,text/plain" hidden>
+      </label>
+      <p id="filename" class="dz-name">no file selected</p>
+    </div>
+
+    <textarea id="input" spellcheck="false"
+      placeholder="…or paste Lua / Luau source here"></textarea>
+  </section>
+
+  <!-- ── MIDDLE: OPTIONS ───────────────────────────────────────── -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Options</h2>
+      <span class="tag" id="preset-tag">balanced</span>
+    </div>
+
+    <div class="opt-group">
+      <div class="opt-title">Identifier style</div>
+      <div class="pills">
+        <label class="pill"><input type="radio" name="idstyle" value="rename" checked><span>Rename</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="mangle"><span>Mangle</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="sflood"><span>S-Flood</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="none"><span>None</span></label>
+      </div>
+      <code class="hint" id="idstyle-hint">_0x0001, _0x0002, _0x0003</code>
+    </div>
+
+    <div class="opt-group">
+      <div class="opt-title">String encoding <em>· stackable</em></div>
+      <div class="pills">
+        <label class="pill"><input type="checkbox" id="str-caesar"><span>Caesar</span></label>
+        <label class="pill"><input type="checkbox" id="str-xor" checked><span>XOR</span></label>
+        <label class="pill"><input type="checkbox" id="str-b64"><span>Base64</span></label>
+      </div>
+      <code class="hint" id="chain-hint">Caesar → XOR</code>
+    </div>
+
+    <div class="opt-group">
+      <div class="opt-title">Passes</div>
+      <div class="switches">
+        <label class="sw"><input type="checkbox" id="opt-env" checked><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">Environment hiding</span></label>
+        <label class="sw"><input type="checkbox" id="opt-deadcode" checked><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">Dead-code injection</span></label>
+        <label class="sw"><input type="checkbox" id="opt-numsplit" checked><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">Number splitting</span></label>
+        <label class="sw"><input type="checkbox" id="opt-flatten" checked><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">Strong CFF</span></label>
+        <label class="sw"><input type="checkbox" id="opt-vm"><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">VM wrapper <em>(loadstring)</em></span></label>
+        <label class="sw"><input type="checkbox" id="opt-minify"><span class="sw-track"><span class="sw-thumb"></span></span><span class="sw-label">Minify output</span></label>
+      </div>
+    </div>
+
+    <div class="presets">
+      <button class="preset" data-preset="light">Light</button>
+      <button class="preset" data-preset="balanced">Balanced</button>
+      <button class="preset" data-preset="paranoid">Paranoid</button>
+    </div>
+
+    <button id="obfuscate-btn" class="primary">Obfuscate</button>
+  </section>
+
+  <!-- ── RIGHT: OUTPUT ─────────────────────────────────────────── -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Output</h2>
+      <span class="tag" id="stats-tag">—</span>
+    </div>
+
+    <textarea id="output" spellcheck="false" readonly
+      placeholder="Obfuscated source will appear here…"></textarea>
+
+    <div class="btnrow">
+      <button id="copy-btn" class="secondary">Copy</button>
+      <button id="download-btn" class="secondary">Download .lua</button>
+    </div>
+
+    <pre id="stats" class="stats"></pre>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>-- this script is protected by surrre4L!</span>
+  <span id="year"></span>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
