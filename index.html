@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
 <title>surrre4L · Luau Obfuscator</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -11,44 +12,47 @@
 <header class="topbar">
   <div class="brand">
     <span class="logo">◈</span>
-    <div>
+    <div class="brand-text">
       <h1>Luau Obfuscator</h1>
-      <p class="sub">protected by <b>surrre4L</b> · 100% client-side</p>
+      <p>protected by <b>surrre4L</b></p>
     </div>
-  </div>
-  <div class="badges">
-    <span class="badge">XOR</span>
-    <span class="badge">B64</span>
-    <span class="badge">CFF</span>
-    <span class="badge">S-FLOOD</span>
   </div>
 </header>
 
-<main class="layout">
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="input">Input</button>
+  <button class="tab" data-tab="options">Options</button>
+  <button class="tab" data-tab="output">Output</button>
+</nav>
 
-  <!-- ── LEFT: INPUT ───────────────────────────────────────────── -->
-  <section class="card">
+<main class="layout" data-active="input">
+
+  <section class="card" data-tab="input">
     <div class="card-head">
-      <h2>Input</h2>
+      <h2>Source</h2>
       <span class="tag" id="input-tag">empty</span>
     </div>
 
     <div id="dropzone" class="dropzone">
       <div class="dz-icon">⬆</div>
-      <p class="dz-title">Drop <b>.lua</b> or <b>.txt</b></p>
-      <label class="filebtn">
-        Browse
-        <input type="file" id="file-input" accept=".lua,.txt,text/plain" hidden>
-      </label>
+      <p class="dz-title">Drop <b>.lua</b> / <b>.txt</b> here</p>
+      <div class="dz-actions">
+        <label class="filebtn">
+          Pick file
+          <input type="file" id="file-input"
+                 accept=".lua,.txt,text/plain,text/x-lua,application/x-lua,application/octet-stream" hidden>
+        </label>
+        <button type="button" class="filebtn ghost" id="clear-file">Clear</button>
+      </div>
       <p id="filename" class="dz-name">no file selected</p>
     </div>
 
-    <textarea id="input" spellcheck="false"
+    <textarea id="input" spellcheck="false" autocapitalize="off"
+      autocorrect="off" autocomplete="off"
       placeholder="…or paste Lua / Luau source here"></textarea>
   </section>
 
-  <!-- ── MIDDLE: OPTIONS ───────────────────────────────────────── -->
-  <section class="card">
+  <section class="card" data-tab="options">
     <div class="card-head">
       <h2>Options</h2>
       <span class="tag" id="preset-tag">balanced</span>
@@ -56,13 +60,16 @@
 
     <div class="opt-group">
       <div class="opt-title">Identifier style</div>
-      <div class="pills">
+      <div class="pills" id="idstyle-pills">
         <label class="pill"><input type="radio" name="idstyle" value="rename" checked><span>Rename</span></label>
         <label class="pill"><input type="radio" name="idstyle" value="mangle"><span>Mangle</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="scramble"><span>Scramble</span></label>
         <label class="pill"><input type="radio" name="idstyle" value="sflood"><span>S-Flood</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="kflood"><span>K-Flood</span></label>
+        <label class="pill"><input type="radio" name="idstyle" value="lflood"><span>L-Flood</span></label>
         <label class="pill"><input type="radio" name="idstyle" value="none"><span>None</span></label>
       </div>
-      <code class="hint" id="idstyle-hint">_0x0001, _0x0002, _0x0003</code>
+      <code class="hint" id="idstyle-hint">_0xaa0001, _0xaa0002, _0xaa0003</code>
     </div>
 
     <div class="opt-group">
@@ -71,8 +78,10 @@
         <label class="pill"><input type="checkbox" id="str-caesar"><span>Caesar</span></label>
         <label class="pill"><input type="checkbox" id="str-xor" checked><span>XOR</span></label>
         <label class="pill"><input type="checkbox" id="str-b64"><span>Base64</span></label>
+        <label class="pill"><input type="checkbox" id="str-rot"><span>ROT13</span></label>
+        <label class="pill"><input type="checkbox" id="str-rev"><span>Reverse</span></label>
       </div>
-      <code class="hint" id="chain-hint">Caesar → XOR</code>
+      <code class="hint" id="chain-hint">XOR</code>
     </div>
 
     <div class="opt-group">
@@ -87,19 +96,20 @@
       </div>
     </div>
 
-    <div class="presets">
-      <button class="preset" data-preset="light">Light</button>
-      <button class="preset" data-preset="balanced">Balanced</button>
-      <button class="preset" data-preset="paranoid">Paranoid</button>
+    <div class="opt-group">
+      <div class="opt-title">Presets</div>
+      <div class="presets">
+        <button type="button" class="preset" data-preset="light">Light</button>
+        <button type="button" class="preset" data-preset="balanced">Balanced</button>
+        <button type="button" class="preset" data-preset="paranoid">Paranoid</button>
+        <button type="button" class="preset" data-preset="max">Max</button>
+      </div>
     </div>
-
-    <button id="obfuscate-btn" class="primary">Obfuscate</button>
   </section>
 
-  <!-- ── RIGHT: OUTPUT ─────────────────────────────────────────── -->
-  <section class="card">
+  <section class="card" data-tab="output">
     <div class="card-head">
-      <h2>Output</h2>
+      <h2>Result</h2>
       <span class="tag" id="stats-tag">—</span>
     </div>
 
@@ -107,8 +117,8 @@
       placeholder="Obfuscated source will appear here…"></textarea>
 
     <div class="btnrow">
-      <button id="copy-btn" class="secondary">Copy</button>
-      <button id="download-btn" class="secondary">Download .lua</button>
+      <button type="button" id="copy-btn" class="secondary">Copy</button>
+      <button type="button" id="download-btn" class="secondary">Download</button>
     </div>
 
     <pre id="stats" class="stats"></pre>
@@ -116,9 +126,12 @@
 
 </main>
 
+<div class="fab-bar">
+  <button id="obfuscate-btn" class="primary">Obfuscate</button>
+</div>
+
 <footer class="foot">
   <span>-- this script is protected by surrre4L!</span>
-  <span id="year"></span>
 </footer>
 
 <script type="module" src="app.js"></script>
