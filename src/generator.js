@@ -7,19 +7,19 @@ const PREC = {
   'unary':11, '^':12,
 };
 
-const indent = lvl => '  '.repeat(lvl);
+const ind = l => '  '.repeat(l);
 
 export function generate(ast, { minify = false } = {}) {
   return genBlock(ast.body, 0, minify).trim() + '\n';
 }
 
-function genBlock(stmts, level, mini) {
-  const i = mini ? '' : indent(level);
-  const nl = mini ? ' ' : '\n';
-  return stmts.map(s => genStatement(s, level, mini, i, nl)).join(mini ? ' ' : '');
+function genBlock(stmts, level, m) {
+  const i  = m ? '' : ind(level);
+  const nl = m ? ' ' : '\n';
+  return stmts.map(s => genStmt(s, level, m, i, nl)).join(m ? ' ' : '');
 }
 
-function genStatement(s, level, mini, i, nl) {
+function genStmt(s, level, m, i, nl) {
   switch (s.type) {
     case 'LocalStatement': {
       let out = i + 'local ' + s.variables.map(genExpr).join(',');
@@ -34,55 +34,54 @@ function genStatement(s, level, mini, i, nl) {
       let out = i + (s.isLocal ? 'local ' : '') + 'function ';
       if (s.identifier) out += s.identifier.name;
       out += '(' + s.parameters.map(p => p.type === 'VarargLiteral' ? '...' : p.name).join(',') + ')';
-      out += mini ? ' ' : '\n';
-      out += genBlock(s.body, level + 1, mini);
+      out += m ? ' ' : '\n';
+      out += genBlock(s.body, level + 1, m);
       out += i + 'end' + nl;
       return out;
     }
     case 'IfStatement': {
       let out = '';
-      s.clauses.forEach(c => {
-        if (c.type === 'IfClause') out += i + 'if ' + genExpr(c.condition) + ' then' + (mini ? ' ' : '\n');
-        else if (c.type === 'ElseifClause') out += i + 'elseif ' + genExpr(c.condition) + ' then' + (mini ? ' ' : '\n');
-        else out += i + 'else' + (mini ? ' ' : '\n');
-        out += genBlock(c.body, level + 1, mini);
-      });
-      out += i + 'end' + nl;
-      return out;
+      for (const c of s.clauses) {
+        if (c.type === 'IfClause')        out += i + 'if ' + genExpr(c.condition) + ' then' + (m ? ' ' : '\n');
+        else if (c.type === 'ElseifClause') out += i + 'elseif ' + genExpr(c.condition) + ' then' + (m ? ' ' : '\n');
+        else                              out += i + 'else' + (m ? ' ' : '\n');
+        out += genBlock(c.body, level + 1, m);
+      }
+      return out + i + 'end' + nl;
     }
     case 'WhileStatement':
-      return i + 'while ' + genExpr(s.condition) + ' do' + (mini ? ' ' : '\n')
-        + genBlock(s.body, level + 1, mini) + i + 'end' + nl;
+      return i + 'while ' + genExpr(s.condition) + ' do' + (m ? ' ' : '\n')
+        + genBlock(s.body, level + 1, m) + i + 'end' + nl;
     case 'RepeatStatement':
-      return i + 'repeat' + (mini ? ' ' : '\n') + genBlock(s.body, level + 1, mini)
+      return i + 'repeat' + (m ? ' ' : '\n') + genBlock(s.body, level + 1, m)
         + i + 'until ' + genExpr(s.condition) + nl;
     case 'DoStatement':
-      return i + 'do' + (mini ? ' ' : '\n') + genBlock(s.body, level + 1, mini) + i + 'end' + nl;
+      return i + 'do' + (m ? ' ' : '\n') + genBlock(s.body, level + 1, m) + i + 'end' + nl;
     case 'ReturnStatement':
       return i + 'return' + (s.arguments.length ? ' ' + s.arguments.map(genExpr).join(',') : '') + nl;
     case 'BreakStatement':
       return i + 'break' + nl;
     case 'ForNumericStatement':
       return i + 'for ' + s.variable.name + '=' + genExpr(s.start) + ',' + genExpr(s.end)
-        + (s.step ? ',' + genExpr(s.step) : '') + ' do' + (mini ? ' ' : '\n')
-        + genBlock(s.body, level + 1, mini) + i + 'end' + nl;
+        + (s.step ? ',' + genExpr(s.step) : '') + ' do' + (m ? ' ' : '\n')
+        + genBlock(s.body, level + 1, m) + i + 'end' + nl;
     case 'ForGenericStatement':
       return i + 'for ' + s.variables.map(v => v.name).join(',') + ' in '
-        + s.iterators.map(genExpr).join(',') + ' do' + (mini ? ' ' : '\n')
-        + genBlock(s.body, level + 1, mini) + i + 'end' + nl;
+        + s.iterators.map(genExpr).join(',') + ' do' + (m ? ' ' : '\n')
+        + genBlock(s.body, level + 1, m) + i + 'end' + nl;
     default:
-      throw new Error('Unknown statement type: ' + s.type);
+      throw new Error('Unknown statement: ' + s.type);
   }
 }
 
 function genExpr(e, parentPrec = 0) {
   switch (e.type) {
-    case 'Identifier': return e.name;
-    case 'NumericLiteral': return e.raw || String(e.value);
-    case 'StringLiteral': return e.raw || JSON.stringify(e.value);
+    case 'Identifier':     return e.name;
+    case 'NumericLiteral': return e.raw != null ? e.raw : String(e.value);
+    case 'StringLiteral':  return e.raw != null ? e.raw : JSON.stringify(e.value);
     case 'BooleanLiteral': return e.value ? 'true' : 'false';
-    case 'NilLiteral': return 'nil';
-    case 'VarargLiteral': return '...';
+    case 'NilLiteral':     return 'nil';
+    case 'VarargLiteral':  return '...';
     case 'BinaryExpression':
     case 'LogicalExpression': {
       const p = PREC[e.operator] || 5;
@@ -99,19 +98,18 @@ function genExpr(e, parentPrec = 0) {
     case 'IndexExpression':
       return genExpr(e.base, 13) + '[' + genExpr(e.index) + ']';
     case 'CallExpression':
-      return genExpr(e.base, 13) + '(' + e.arguments.map(a => genExpr(a)).join(',') + ')';
+      return genExpr(e.base, 13) + '(' + e.arguments.map(genExpr).join(',') + ')';
     case 'TableConstructorExpression':
       return '{' + e.fields.map(f => {
-        if (f.type === 'TableKey') return '[' + genExpr(f.key) + ']=' + genExpr(f.value);
+        if (f.type === 'TableKey')       return '[' + genExpr(f.key) + ']=' + genExpr(f.value);
         if (f.type === 'TableKeyString') return f.key.name + '=' + genExpr(f.value);
         return genExpr(f.value);
       }).join(',') + '}';
     case 'FunctionExpression': {
       const params = e.parameters.map(p => p.type === 'VarargLiteral' ? '...' : p.name).join(',');
-      const body = genBlock(e.body, 1, false);
-      return 'function(' + params + ')\n' + body + 'end';
+      return 'function(' + params + ')\n' + genBlock(e.body, 1, false) + 'end';
     }
     default:
-      throw new Error('Unknown expression type: ' + e.type);
+      throw new Error('Unknown expression: ' + e.type);
   }
 }
