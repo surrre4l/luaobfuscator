@@ -1,63 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Luau Obfuscator</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<header>
-  <h1>Luau Obfuscator</h1>
-  <p>Runs 100% in your browser · no upload to any server</p>
-</header>
+<section class="panel">
+  <h2>Options</h2>
 
-<main>
-  <section class="panel">
-    <h2>Input</h2>
-    <div id="dropzone">
-      <p>Drop a <b>.lua</b> or <b>.txt</b> file here</p>
-      <label class="filebtn">
-        Choose File
-        <input type="file" id="file-input" accept=".lua,.txt,text/plain" hidden>
-      </label>
-      <p id="filename">No file selected</p>
-    </div>
-    <textarea id="input" spellcheck="false" placeholder="…or paste Lua code here"></textarea>
-  </section>
+  <fieldset>
+    <legend>Identifier style (pick one)</legend>
+    <label><input type="radio" name="idstyle" value="rename" checked> Rename &nbsp;<code>_0x0001</code></label>
+    <label><input type="radio" name="idstyle" value="mangle"> Mangle &nbsp;<code>_l1O0S5Zz</code></label>
+    <label><input type="radio" name="idstyle" value="sflood"> S-Flood &nbsp;<code>SSSSSS</code></label>
+    <label><input type="radio" name="idstyle" value="none"> None</label>
+  </fieldset>
 
-  <section class="panel">
-    <h2>Options</h2>
-    <label><input type="checkbox" id="opt-rename" checked> Rename identifiers</label>
-    <label><input type="checkbox" id="opt-env" checked> Environment hiding</label>
-    <label><input type="checkbox" id="opt-deadcode" checked> Dead-code injection</label>
-    <label><input type="checkbox" id="opt-flatten" checked> Control-flow flattening</label>
+  <fieldset>
+    <legend>String encoding (stackable)</legend>
+    <label><input type="checkbox" id="str-xor" checked> XOR</label>
+    <label><input type="checkbox" id="str-b64"> Base64</label>
+    <label><input type="checkbox" id="str-caesar"> Caesar</label>
+  </fieldset>
 
-    <fieldset>
-      <legend>String encoding</legend>
-      <label><input type="radio" name="strmode" value="none"> None</label>
-      <label><input type="radio" name="strmode" value="xor" checked> XOR (random key per string)</label>
-      <label><input type="radio" name="strmode" value="b64"> Base64</label>
-      <label><input type="radio" name="strmode" value="caesar"> Caesar cipher</label>
-    </fieldset>
+  <label><input type="checkbox" id="opt-env" checked> Environment hiding</label>
+  <label><input type="checkbox" id="opt-deadcode" checked> Dead-code injection</label>
+  <label><input type="checkbox" id="opt-numsplit" checked> Number splitting</label>
+  <label><input type="checkbox" id="opt-flatten" checked> Strong control-flow flattening</label>
+  <label><input type="checkbox" id="opt-vm"> VM wrapper (loadstring)</label>
+  <label><input type="checkbox" id="opt-minify"> Minify output</label>
 
-    <label><input type="checkbox" id="opt-vm"> VM wrapper (loadstring loader)</label>
-    <label><input type="checkbox" id="opt-minify"> Minify output</label>
-
-    <button id="obfuscate-btn">Obfuscate</button>
-  </section>
-
-  <section class="panel">
-    <h2>Output</h2>
-    <textarea id="output" spellcheck="false" readonly placeholder="Obfuscated code…"></textarea>
-    <div class="btnrow">
-      <button id="copy-btn">Copy</button>
-      <button id="download-btn">Download .lua</button>
-    </div>
-    <pre id="stats"></pre>
-  </section>
-</main>
-
-<script type="module" src="app.js"></script>
-</body>
-</html>
+  <button id="obfuscate-btn">Obfuscate</button>
+</section>
