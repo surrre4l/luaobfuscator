@@ -1,113 +1,110 @@
 import { walk, collectBlocks } from './walker.js';
 
-/* ------------------------------------------------------------------ */
-/* helpers                                                             */
-/* ------------------------------------------------------------------ */
+/* ── helpers ──────────────────────────────────────────────────── */
 const mkId   = n => ({ type: 'Identifier', name: n });
 const mkNum  = v => ({ type: 'NumericLiteral', value: v, raw: String(v) });
-const mkStr  = s => ({ type: 'StringLiteral', value: s, raw: null });
 const binop  = (op, l, r) => ({ type: 'BinaryExpression', operator: op, left: l, right: r });
-const call   = (base, args) => ({ type: 'CallExpression', base, arguments: args });
-const local  = (names, init = []) => ({ type: 'LocalStatement', variables: names, init });
-const assign = (vars, init) => ({ type: 'AssignmentStatement', variables: vars, init });
+const call   = (b, a) => ({ type: 'CallExpression', base: b, arguments: a });
+const local  = (n, i = []) => ({ type: 'LocalStatement', variables: n, init: i });
+const assign = (v, i) => ({ type: 'AssignmentStatement', variables: v, init: i });
 
 let _uid = 0;
 const uid = p => `__${p}_${(_uid++).toString(36)}`;
 
-/* ------------------------------------------------------------------ */
-/* 0. Watermark                                                        */
-/* ------------------------------------------------------------------ */
+/* ── watermark ────────────────────────────────────────────────── */
 export const WATERMARK = '-- this script is protected by surrre4L!';
-export const watermark = src => WATERMARK + '\n' + src;
+export const watermark = s => WATERMARK + '\n' + s;
 
-/* ------------------------------------------------------------------ */
-/* 1. Identifier renaming (classic _0xABCD)                            */
-/* ------------------------------------------------------------------ */
+/* ── declared-set collector ───────────────────────────────────── */
 function collectDeclared(ast) {
-  const declared = new Set();
+  const d = new Set();
   walk(ast, {
-    LocalStatement: n => n.variables.forEach(v => declared.add(v.name)),
+    LocalStatement: n => n.variables.forEach(v => d.add(v.name)),
     FunctionDeclaration: n => {
-      if (n.isLocal && n.identifier) declared.add(n.identifier.name);
-      n.parameters.forEach(p => { if (p.type === 'Identifier') declared.add(p.name); });
+      if (n.isLocal && n.identifier) d.add(n.identifier.name);
+      n.parameters.forEach(p => { if (p.type === 'Identifier') d.add(p.name); });
     },
-    ForNumericStatement: n => n.variable && declared.add(n.variable.name),
-    ForGenericStatement: n => n.variables.forEach(v => declared.add(v.name)),
+    ForNumericStatement: n => n.variable && d.add(n.variable.name),
+    ForGenericStatement: n => n.variables.forEach(v => d.add(v.name)),
   });
-  return declared;
+  return d;
 }
 
-function rewriteIdentifiers(ast, mapper) {
+function rewriteIds(ast, mapper) {
   walk(ast, {
     Identifier: (n, parent) => {
       if (parent && parent.type === 'MemberExpression' && parent.identifier === n) return;
       if (parent && parent.type === 'TableKeyString' && parent.key === n) return;
       if (parent && parent.type === 'FunctionDeclaration'
           && parent.identifier === n && !parent.isLocal) return;
-      const mapped = mapper(n.name);
-      if (mapped) n.name = mapped;
+      const m = mapper(n.name);
+      if (m) n.name = m;
     },
   });
 }
 
+/* ── 1. Identifier styles ─────────────────────────────────────── */
 export function renamePass(ast) {
-  const declared = collectDeclared(ast);
+  const d = collectDeclared(ast);
+  const prefix = '_0x' + Math.floor(Math.random() * 0xff).toString(16).padStart(2, '0');
   const map = new Map();
   let i = 0;
-  for (const name of declared) {
+  for (const name of d) {
     i++;
-    map.set(name, '_0x' + i.toString(16).padStart(4, '0'));
+    map.set(name, prefix + i.toString(16).padStart(4, '0'));
   }
-  rewriteIdentifiers(ast, n => map.get(n));
+  rewriteIds(ast, n => map.get(n));
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 2. Mangle — look-alike identifier soup (l, I, 1, O, 0, S, 5, Z)     */
-/* ------------------------------------------------------------------ */
-const MANGLE_CHARS = 'Il1O0S5Zz';
-
-function mangleName(len) {
-  let s = '_';
-  for (let i = 0; i < len; i++) {
-    s += MANGLE_CHARS[Math.floor(Math.random() * MANGLE_CHARS.length)];
-  }
-  return s;
-}
-
+const MANGLE = 'Il1O0S5ZzoO0iIl1';
 export function manglePass(ast) {
-  const declared = collectDeclared(ast);
+  const d = collectDeclared(ast);
   const map = new Map();
-  for (const name of declared) {
-    map.set(name, mangleName(6 + Math.floor(Math.random() * 6)));
+  for (const name of d) {
+    let s = '_';
+    const len = 6 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < len; i++) s += MANGLE[Math.floor(Math.random() * MANGLE.length)];
+    map.set(name, s);
   }
-  rewriteIdentifiers(ast, n => map.get(n));
+  rewriteIds(ast, n => map.get(n));
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 3. S-Flood — the "full of S" technique                              */
-/*     Every local becomes S, SS, SSS, SSSS, ...                       */
-/* ------------------------------------------------------------------ */
-export function sFloodPass(ast) {
-  const declared = collectDeclared(ast);
+function repeatFlood(ast, ch) {
+  const d = collectDeclared(ast);
   const map = new Map();
   let i = 1;
-  for (const name of declared) {
-    map.set(name, 'S'.repeat(i));
-    i++;
-  }
-  rewriteIdentifiers(ast, n => map.get(n));
+  for (const name of d) map.set(name, ch.repeat(i++));
+  rewriteIds(ast, n => map.get(n));
+  return ast;
+}
+export const sFloodPass = a => repeatFlood(a, 'S');
+export const kFloodPass = a => repeatFlood(a, 'K');
+export const lFloodPass = a => repeatFlood(a, 'L');
 
-  // Also obfuscate unbound global lookups so they don't stand out
-  // (they will already have been rewritten by the env pass if it ran).
+// Scramble — random mixes drawn from confusing chars, no repeats
+export function scramblePass(ast) {
+  const d = collectDeclared(ast);
+  const CHARS = 'Il1O0S5ZzoKi';
+  const used = new Set();
+  const map = new Map();
+  for (const name of d) {
+    let s;
+    do {
+      s = '_';
+      const len = 5 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < len; i++) s += CHARS[Math.floor(Math.random() * CHARS.length)];
+    } while (used.has(s));
+    used.add(s);
+    map.set(name, s);
+  }
+  rewriteIds(ast, n => map.get(n));
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 4. Environment hiding                                               */
-/* ------------------------------------------------------------------ */
-const ENV_SKIP = new Set(['_ENV', '_G', '_VERSION', 'self', 'S', 'SS']);
+/* ── 2. Environment hiding ────────────────────────────────────── */
+const ENV_SKIP = new Set(['_ENV', '_G', '_VERSION', 'self']);
 
 export function envPass(ast) {
   const locals = new Set();
@@ -121,8 +118,7 @@ export function envPass(ast) {
     ForGenericStatement: n => n.variables.forEach(v => locals.add(v.name)),
   });
 
-  const envName = '__env';
-
+  const ENV = '__env';
   walk(ast, {
     Identifier: (n, parent) => {
       if (parent && parent.type === 'MemberExpression' && parent.identifier === n) return;
@@ -130,15 +126,14 @@ export function envPass(ast) {
       if (locals.has(n.name)) return;
       if (ENV_SKIP.has(n.name)) return;
       if (n.name.startsWith('__')) return;
-
-      const original = n.name;
+      const orig = n.name;
       n.type = 'IndexExpression';
-      n.base = { type: 'Identifier', name: envName };
-      n.index = mkStr(original);
+      n.base = mkId(ENV);
+      n.index = { type: 'StringLiteral', value: orig, raw: JSON.stringify(orig) };
     },
   });
 
-  const prelude = local([mkId(envName)], [{
+  ast.body.unshift(local([mkId(ENV)], [{
     type: 'LogicalExpression', operator: 'or',
     left: {
       type: 'LogicalExpression', operator: 'and',
@@ -150,15 +145,12 @@ export function envPass(ast) {
       left: mkId('_ENV'),
       right: mkId('_G'),
     },
-  }]);
+  }]));
 
-  ast.body.unshift(prelude);
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 5. String encoding — chained / stacked                              */
-/* ------------------------------------------------------------------ */
+/* ── 3. String encoding ───────────────────────────────────────── */
 const DECODERS = {
   xor: `local function __xd(s,k)
   local t={}
@@ -184,6 +176,14 @@ end`,
   for i=1,#s do t[i]=string.char((string.byte(s,i)+k)%256) end
   return table.concat(t)
 end`,
+  rot: `local function __rt(s)
+  local t={}
+  for i=1,#s do t[i]=string.char((string.byte(s,i)+13)%256) end
+  return table.concat(t)
+end`,
+  rev: `local function __rv(s)
+  return s:reverse()
+end`,
 };
 
 function toBytes(str) {
@@ -191,7 +191,7 @@ function toBytes(str) {
   for (let i = 0; i < str.length; i++) b[i] = str.charCodeAt(i) & 0xff;
   return b;
 }
-function bytesToLuaLit(bytes) {
+function bytesLit(bytes) {
   let out = '"';
   for (const b of bytes) {
     if (b >= 32 && b < 127 && b !== 34 && b !== 92) out += String.fromCharCode(b);
@@ -200,14 +200,9 @@ function bytesToLuaLit(bytes) {
   return out + '"';
 }
 
-/**
- * chain is an ordered array like ['caesar','xor','b64'] —
- * caesar is applied first, b64 last. Decoders are nested in reverse.
- */
 function encodeChain(value, chain) {
   let bytes = toBytes(value);
   const decoders = [];
-
   for (const mode of chain) {
     if (mode === 'xor') {
       const k = 1 + Math.floor(Math.random() * 255);
@@ -227,89 +222,117 @@ function encodeChain(value, chain) {
       const b64 = btoa(bin);
       bytes = toBytes(b64);
       decoders.push({ fn: '__b64', args: [] });
+    } else if (mode === 'rot') {
+      const out = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) out[i] = (bytes[i] + 13) & 0xff;
+      bytes = out;
+      decoders.push({ fn: '__rt', args: [] });
+    } else if (mode === 'rev') {
+      bytes = new Uint8Array([...bytes].reverse());
+      decoders.push({ fn: '__rv', args: [] });
     }
   }
 
-  const lit = { type: 'StringLiteral', value: null, raw: bytesToLuaLit(bytes) };
+  const lit = { type: 'StringLiteral', value: null, raw: bytesLit(bytes) };
 
-  // Build nested call — outermost = first encoder's decoder
   let expr = lit;
-  const rev = [...decoders].reverse();
-  for (const d of rev) {
+  const revDec = [...decoders].reverse();
+  for (const d of revDec) {
     expr = { type: 'CallExpression', base: mkId(d.fn), arguments: [expr, ...d.args] };
   }
   return { expr, used: new Set(chain) };
 }
 
 export function stringPass(ast, chain) {
-  if (!chain || chain.length === 0) return { ast, decoderCode: '' };
-
-  const usedDecoders = new Set();
-
+  if (!chain || !chain.length) return { ast, decoderCode: '' };
+  const used = new Set();
   walk(ast, {
     StringLiteral: node => {
-      if (!node.value) return;
-      const { expr, used } = encodeChain(node.value, chain);
-      used.forEach(u => usedDecoders.add(u));
+      if (node.value == null) return;
+      const { expr, used: u } = encodeChain(node.value, chain);
+      u.forEach(x => used.add(x));
       Object.assign(node, expr);
     },
   });
-
-  const decoderCode = [...usedDecoders]
-    .map(k => DECODERS[k])
-    .filter(Boolean)
-    .join('\n');
-
+  const decoderCode = [...used].map(k => DECODERS[k]).filter(Boolean).join('\n');
   return { ast, decoderCode };
 }
 
-/* ------------------------------------------------------------------ */
-/* 6. Dead code injection                                              */
-/* ------------------------------------------------------------------ */
+/* ── 4. Dead code injection ───────────────────────────────────── */
+function deadStmt() {
+  // local __v = a OP b  where result is meaningless
+  const a = 1 + Math.floor(Math.random() * 2000);
+  const b = 1 + Math.floor(Math.random() * 2000);
+  const op = ['+', '-', '*'][Math.floor(Math.random() * 3)];
+  if (op === '*') {
+    return local([mkId(uid('v'))], [binop('-', binop('*', mkNum(a), mkNum(b)), mkNum(a * b))]);
+  }
+  return local([mkId(uid('v'))], [binop('-', binop(op, mkNum(a), mkNum(b)), mkNum(op === '+' ? a + b : a - b))]);
+}
+
+function deadIf() {
+  // if 1==2 then ... end  (never executes)
+  return {
+    type: 'IfStatement',
+    clauses: [{
+      type: 'IfClause',
+      condition: binop('==', mkNum(1), mkNum(2)),
+      body: [local([mkId(uid('x'))], [mkNum(Math.random() * 1000)])],
+    }, {
+      type: 'ElseClause',
+      body: [],
+    }],
+  };
+}
+
 export function deadCodePass(ast) {
   const blocks = collectBlocks(ast);
   for (const b of blocks) {
     if (!b.body || b.body.length === 0) continue;
-
-    const n = 1 + Math.floor(Math.random() * 2);
     const inserts = [];
-    for (let k = 0; k < n; k++) {
-      const a = 1 + Math.floor(Math.random() * 1000);
-      const b2 = 1 + Math.floor(Math.random() * 1000);
-      inserts.push(local([mkId(uid('v'))], [
-        binop('-', binop('+', mkNum(a), mkNum(b2)), mkNum(a))
-      ]));
-    }
+    const n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) inserts.push(deadStmt());
+    if (Math.random() < 0.4) inserts.push(deadIf());
     b.body.unshift(...inserts);
   }
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 7. Number splitting (recursive)                                     */
-/* ------------------------------------------------------------------ */
-function splitOnce(value) {
+/* ── 5. Number splitting ──────────────────────────────────────── */
+function splitNum(value) {
   if (!Number.isInteger(value) || Math.abs(value) < 4) return null;
-  const a = Math.floor(value / 2) + (Math.random() < 0.5 ? 0 : 1);
-  const b = value - a;
-  if (a === 0 || b === 0) return null;
-  if (Math.random() < 0.5) return binop('+', mkNum(a), mkNum(b));
-  const b2 = 1 + Math.floor(Math.random() * 100);
-  return binop('-', mkNum(value + b2), mkNum(b2));
+  const strategy = Math.floor(Math.random() * 3);
+
+  if (strategy === 0) {
+    const a = Math.floor(value / 2) + Math.floor(Math.random() * 2) - 1;
+    if (a === 0 || a === value) return null;
+    return binop('+', mkNum(a), mkNum(value - a));
+  } else if (strategy === 1) {
+    const b = 1 + Math.floor(Math.random() * 500);
+    return binop('-', mkNum(value + b), mkNum(b));
+  } else {
+    const m = 2 + Math.floor(Math.random() * 5);
+    const q = Math.floor(value / m);
+    if (q * m !== value) {
+      const r = value - q * m;
+      return binop('+', binop('*', mkNum(q), mkNum(m)), mkNum(r));
+    }
+    return binop('*', mkNum(q), mkNum(m));
+  }
 }
 
-export function numberSplitPass(ast, maxDepth = 3) {
+export function numberSplitPass(ast, depth = 3) {
   walk(ast, {
     NumericLiteral: (node, parent) => {
       if (parent && parent.type === 'ForNumericStatement'
           && (parent.start === node || parent.end === node || parent.step === node)) return;
       if (!Number.isInteger(node.value) || Math.abs(node.value) < 4) return;
 
-      const repl = splitOnce(node.value);
+      const repl = splitNum(node.value);
       if (!repl) return;
 
-      let depth = 1;
-      while (depth < maxDepth) {
+      let d = 1;
+      while (d < depth) {
         const leaves = [];
         (function collect(n) {
           if (n.type === 'BinaryExpression') { collect(n.left); collect(n.right); }
@@ -317,10 +340,10 @@ export function numberSplitPass(ast, maxDepth = 3) {
         })(repl);
         const leaf = leaves[Math.floor(Math.random() * leaves.length)];
         if (leaf.type !== 'NumericLiteral') break;
-        const sub = splitOnce(leaf.value);
+        const sub = splitNum(leaf.value);
         if (!sub) break;
         Object.assign(leaf, sub);
-        depth++;
+        d++;
       }
       Object.assign(node, repl);
     },
@@ -328,17 +351,14 @@ export function numberSplitPass(ast, maxDepth = 3) {
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 8. Strong control-flow flattening                                   */
-/*     state = 1*K+O, 2*K+O, ...  (arithmetic-hidden dispatcher)       */
-/* ------------------------------------------------------------------ */
+/* ── 6. Strong control-flow flattening ────────────────────────── */
 function hasReturnOrBreak(node) {
-  let found = false;
+  let f = false;
   walk(node, {
-    ReturnStatement: () => { found = true; },
-    BreakStatement: () => { found = true; },
+    ReturnStatement: () => { f = true; },
+    BreakStatement: () => { f = true; },
   });
-  return found;
+  return f;
 }
 
 function flattenStrong(stmts) {
@@ -348,47 +368,57 @@ function flattenStrong(stmts) {
   if (stmts.some(s => hasReturnOrBreak(s))) return stmts;
 
   const stName = uid('st');
-  const K = 3 + Math.floor(Math.random() * 97);
-  const O = 5 + Math.floor(Math.random() * 97);
-  const stateVal = i => i * K + O;
+  const K = 4 + Math.floor(Math.random() * 40);   // state multiplier
+  const O = 7 + Math.floor(Math.random() * 200);  // state offset
+  const state = i => i * K + O;
 
-  const decl = local([mkId(stName)], [mkNum(stateVal(1))]);
-
+  // Optional second layer: hidden dispatch value
   const clauses = [];
   for (let i = 0; i < stmts.length; i++) {
-    const body = [stmts[i]];
+    let body = [stmts[i]];
     const next = i === stmts.length - 1 ? 0 : i + 2;
-    body.push(assign([mkId(stName)], [mkNum(stateVal(next))]));
+    body.push(assign([mkId(stName)], [mkNum(state(next))]));
+
+    // Wrap 30% of the statements in a trivially-true conditional
+    if (Math.random() < 0.3) {
+      body[0] = {
+        type: 'IfStatement',
+        clauses: [
+          { type: 'IfClause', condition: binop('~=', mkNum(3), mkNum(4)), body: [body[0]] },
+          { type: 'ElseClause', body: [deadStmt()] },
+        ],
+      };
+    }
     clauses.push({
       type: i === 0 ? 'IfClause' : 'ElseifClause',
-      condition: binop('==', mkId(stName), mkNum(stateVal(i + 1))),
+      condition: binop('==', mkId(stName), mkNum(state(i + 1))),
       body,
     });
   }
   clauses.push({ type: 'ElseClause', body: [] });
 
-  const whileStmt = {
-    type: 'WhileStatement',
-    condition: binop('~=', mkId(stName), mkNum(0)),
-    body: [{ type: 'IfStatement', clauses }],
-  };
-
-  return [{ type: 'DoStatement', body: [decl, whileStmt] }];
+  return [{
+    type: 'DoStatement',
+    body: [
+      local([mkId(stName)], [mkNum(state(1))]),
+      {
+        type: 'WhileStatement',
+        condition: binop('~=', mkId(stName), mkNum(0)),
+        body: [{ type: 'IfStatement', clauses }],
+      },
+    ],
+  }];
 }
 
 export function strongFlattenPass(ast) {
   const blocks = collectBlocks(ast);
   for (const b of blocks) {
-    if (b.body && b.body.length >= 3) {
-      b.body = flattenStrong(b.body);
-    }
+    if (b.body && b.body.length >= 3) b.body = flattenStrong(b.body);
   }
   return ast;
 }
 
-/* ------------------------------------------------------------------ */
-/* 9. VM / loader wrapper                                              */
-/* ------------------------------------------------------------------ */
+/* ── 7. VM loader wrapper ─────────────────────────────────────── */
 export function vmWrap(source, { xorKey = null } = {}) {
   const key = xorKey != null ? xorKey : 1 + Math.floor(Math.random() * 255);
   const bytes = new Uint8Array(source.length);
@@ -396,8 +426,7 @@ export function vmWrap(source, { xorKey = null } = {}) {
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
   const b64 = btoa(bin);
-
-  return `-- Luau Obfuscator \u00b7 VM Loader
+  return `-- Luau Obfuscator · VM Loader
 local function __b64(s)
   local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   return (s:gsub('[^'..b..'=]',''):gsub('.',function(x)
