@@ -1,75 +1,66 @@
 import { parse } from './parser.js';
 import { generate } from './generator.js';
 import {
-  watermark, WATERMARK,
-  renamePass, manglePass, sFloodPass, envPass,
-  stringPass, deadCodePass, numberSplitPass,
+  watermark,
+  renamePass, manglePass, scramblePass,
+  sFloodPass, kFloodPass, lFloodPass,
+  envPass, stringPass,
+  deadCodePass, numberSplitPass,
   strongFlattenPass, vmWrap,
 } from './passes.js';
 
-/**
- * opts:
- *   rename        bool
- *   mangle        bool   (overrides rename)
- *   sFlood        bool   (overrides mangle + rename)
- *   env           bool
- *   deadCode      bool
- *   numberSplit   bool
- *   flatten       bool
- *   stringChain   array  e.g. ['caesar','xor','b64']
- *   vm            bool
- *   minify        bool
- */
+const ID_PASSES = {
+  rename:   renamePass,
+  mangle:   manglePass,
+  scramble: scramblePass,
+  sflood:   sFloodPass,
+  kflood:   kFloodPass,
+  lflood:   lFloodPass,
+};
+
 export function obfuscate(source, opts = {}) {
   const o = {
-    rename: true, mangle: false, sFlood: false,
+    idstyle: 'rename',
     env: true, deadCode: true, numberSplit: true, flatten: true,
     stringChain: ['xor'], vm: false, minify: false,
     ...opts,
   };
 
   let ast;
-  try {
-    ast = parse(source);
-  } catch (err) {
-    // Fallback — parse failed (e.g. Luau type annotations).
-    // Still produce output via VM wrap so nothing is lost.
-    const wrapped = vmWrap(source, {});
-    return watermark(wrapped) + '\n-- fallback: ' + err.message + '\n';
+  try { ast = parse(source); }
+  catch (err) {
+    return watermark(vmWrap(source, {})) + '\n-- fallback: ' + err.message + '\n';
   }
 
-  // ---- String encoding (chained) ----
+  // 1. Strings
   let decoderCode = '';
   if (o.stringChain && o.stringChain.length) {
-    const res = stringPass(ast, o.stringChain);
-    ast = res.ast;
-    decoderCode = res.decoderCode;
+    const r = stringPass(ast, o.stringChain);
+    ast = r.ast; decoderCode = r.decoderCode;
   }
 
-  // ---- Env hiding ----
+  // 2. Env
   if (o.env) ast = envPass(ast);
 
-  // ---- Dead code ----
+  // 3. Dead code
   if (o.deadCode) ast = deadCodePass(ast);
 
-  // ---- Number splitting ----
+  // 4. Number split
   if (o.numberSplit) ast = numberSplitPass(ast, 3);
 
-  // ---- Strong CFF ----
+  // 5. CFF
   if (o.flatten) ast = strongFlattenPass(ast);
 
-  // ---- Renaming — one style wins ----
-  if (o.sFlood)       ast = sFloodPass(ast);
-  else if (o.mangle)  ast = manglePass(ast);
-  else if (o.rename)  ast = renamePass(ast);
+  // 6. Identifier style
+  const idPass = ID_PASSES[o.idstyle];
+  if (idPass) ast = idPass(ast);
 
-  // ---- Generate ----
+  // 7. Generate
   let out = generate(ast, { minify: o.minify });
   if (decoderCode) out = decoderCode + '\n' + out;
 
-  // ---- VM wrapper (optional) ----
+  // 8. VM wrapper
   if (o.vm) out = vmWrap(out, {});
 
-  // ---- Watermark always last so it's the first line ----
   return watermark(out);
 }
